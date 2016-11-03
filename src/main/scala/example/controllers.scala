@@ -12,6 +12,7 @@ import org.http4s.server.{Server, ServerApp}
 import org.joda.time._
 import doobie.imports._
 import scalaz.concurrent.Task
+import scalaz.stream.Process
 
 case class User(id: Long, name: String, email: String, createdAt: DateTime)
 
@@ -23,11 +24,12 @@ object User {
   def userService(transactor: Transactor[Task]) = HttpService {
     case GET -> Root / "users" =>
       Ok().withBody(
+        // Returning a json array. Could be adapted to return a json per line.
+        Process.emit("[") ++
         // Calling process/transact as described in http://tpolecat.github.io/doobie-0.3.0/04-Selecting.html
         transactor.transact(models.User.findAll.process)
-          // Converting the results to json - streaming and line by line.
-          // Can't stream json yet... https://github.com/http4s/http4s/blob/master/argonaut/src/main/scala/org/http4s/argonaut/ArgonautInstances.scala
-          .map(_.convert.asJson)
+          .map(_.convert.asJson.nospaces + ",") ++
+          Process.emit("]")
       )
     case GET -> Root / "users" / LongVar(id) =>
       // We're getting a Task[Option[User]] back, so map and pattern match.
